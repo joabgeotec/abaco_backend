@@ -9,6 +9,7 @@ import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,6 +45,14 @@ public class FuncionalidadeResource {
 
     private final FuncionalidadeSearchRepository funcionalidadeSearchRepository;
 
+    private static final String ROLE_ANALISTA = "ROLE_ANALISTA";
+
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
+
+    private static final String ROLE_USER = "ROLE_USER";
+
+    private static final String ROLE_GESTOR = "ROLE_GESTOR";
+
     public FuncionalidadeResource(FuncionalidadeRepository funcionalidadeRepository, FuncionalidadeSearchRepository funcionalidadeSearchRepository) {
         this.funcionalidadeRepository = funcionalidadeRepository;
         this.funcionalidadeSearchRepository = funcionalidadeSearchRepository;
@@ -58,6 +67,7 @@ public class FuncionalidadeResource {
      */
     @PostMapping("/funcionalidades")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Funcionalidade> createFuncionalidade(@Valid @RequestBody Funcionalidade funcionalidade) throws URISyntaxException {
         log.debug("REST request to save Funcionalidade : {}", funcionalidade);
         if (funcionalidade.getId() != null) {
@@ -81,6 +91,7 @@ public class FuncionalidadeResource {
      */
     @PutMapping("/funcionalidades")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Funcionalidade> updateFuncionalidade(@Valid @RequestBody Funcionalidade funcionalidade) throws URISyntaxException {
         log.debug("REST request to update Funcionalidade : {}", funcionalidade);
         if (funcionalidade.getId() == null) {
@@ -102,8 +113,7 @@ public class FuncionalidadeResource {
     @Timed
     public List<Funcionalidade> getAllFuncionalidades() {
         log.debug("REST request to get all Funcionalidades");
-        List<Funcionalidade> funcionalidades = funcionalidadeRepository.findAll();
-        return funcionalidades;
+        return funcionalidadeRepository.findAll();
     }
 
     /**
@@ -119,6 +129,18 @@ public class FuncionalidadeResource {
         Funcionalidade funcionalidade = funcionalidadeRepository.findOne(id);
         return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcionalidade));
     }
+    
+    /**
+     * GET  /modulos : get all the modulos.
+     *
+     * @return the ResponseEntity with status 200 (OK) and the list of modulos in body
+     */
+    @GetMapping("/funcionalidades/modulo/{id}")
+    @Timed
+    public List<Funcionalidade> getAllFuncionalidadesModulo(@PathVariable Long id) {
+        log.debug("REST request to get all Funcionalidades");
+        return funcionalidadeRepository.findByModulo(id);
+    }
 
     /**
      * DELETE  /funcionalidades/:id : delete the "id" funcionalidade.
@@ -128,6 +150,7 @@ public class FuncionalidadeResource {
      */
     @DeleteMapping("/funcionalidades/{id}")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Void> deleteFuncionalidade(@PathVariable Long id) {
         log.debug("REST request to delete Funcionalidade : {}", id);
         funcionalidadeRepository.delete(id);

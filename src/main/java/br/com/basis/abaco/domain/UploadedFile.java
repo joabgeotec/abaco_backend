@@ -8,9 +8,11 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
+import javax.persistence.Lob;
 import javax.persistence.ManyToOne;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
+import java.io.Serializable;
 import java.util.Date;
 
 /**
@@ -20,7 +22,7 @@ import java.util.Date;
 @Entity
 @Table(name = "files")
 
-public class UploadedFile {
+public class UploadedFile implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
@@ -28,6 +30,10 @@ public class UploadedFile {
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "sequenceGenerator")
     @SequenceGenerator(name = "sequenceGenerator")
     private Long id;
+
+    @Lob
+    @Column
+    private byte[] logo;
 
     @Column
     private String originalName;
@@ -81,11 +87,11 @@ public class UploadedFile {
     }
 
     public Date getDateOf() {
-        return dateOf;
+        return (Date) dateOf.clone();
     }
 
     public void setDateOf(Date dateOf) {
-        this.dateOf = dateOf;
+        this.dateOf = (Date) dateOf.clone();
     }
 
     public Integer getSizeOf() {
@@ -120,4 +126,14 @@ public class UploadedFile {
     public void setFuncaoTransacao(FuncaoTransacao funcaoTransacao) {
         this.funcaoTransacao = funcaoTransacao;
     }
+
+    public byte[] getLogo() {
+        return logo.clone();
+    }
+
+    public void setLogo(byte[] logo) {
+        byte[] logo2 = logo.clone();
+        this.logo = logo2;
+    }
+
 }

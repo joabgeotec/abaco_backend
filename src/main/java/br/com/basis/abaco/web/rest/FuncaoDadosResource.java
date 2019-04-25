@@ -3,12 +3,15 @@ package br.com.basis.abaco.web.rest;
 import br.com.basis.abaco.domain.FuncaoDados;
 import br.com.basis.abaco.repository.FuncaoDadosRepository;
 import br.com.basis.abaco.repository.search.FuncaoDadosSearchRepository;
+import br.com.basis.abaco.service.dto.FuncaoDadoApiDTO;
 import br.com.basis.abaco.web.rest.util.HeaderUtil;
 import com.codahale.metrics.annotation.Timed;
 import io.github.jhipster.web.util.ResponseUtil;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,7 +60,14 @@ public class FuncaoDadosResource {
      */
     @PostMapping("/funcao-dados")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<FuncaoDados> createFuncaoDados(@RequestBody FuncaoDados funcaoDados) throws URISyntaxException {
+
+        FuncaoDados f = funcaoDadosRepository.findName(2101l, funcaoDados.getName());
+
+        log.debug("FuncaoDados : {}", f.toString());
+
+
         log.debug("REST request to save FuncaoDados : {}", funcaoDados);
         if (funcaoDados.getId() != null) {
             return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new funcaoDados cannot already have an ID")).body(null);
@@ -80,6 +90,7 @@ public class FuncaoDadosResource {
      */
     @PutMapping("/funcao-dados")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<FuncaoDados> updateFuncaoDados(@RequestBody FuncaoDados funcaoDados) throws URISyntaxException {
         log.debug("REST request to update FuncaoDados : {}", funcaoDados);
         if (funcaoDados.getId() == null) {
@@ -102,7 +113,7 @@ public class FuncaoDadosResource {
     public List<FuncaoDados> getAllFuncaoDados() {
         log.debug("REST request to get all FuncaoDados");
         List<FuncaoDados> funcaoDados = funcaoDadosRepository.findAll();
-        funcaoDados.stream().filter(f->f.getAnalise()!=null).forEach(f -> {
+        funcaoDados.stream().filter(f -> f.getAnalise() != null).forEach(f -> {
             if (f.getAnalise().getFuncaoDados() != null) {
                 f.getAnalise().getFuncaoDados().clear();
             }
@@ -121,7 +132,7 @@ public class FuncaoDadosResource {
      */
     @GetMapping("/funcao-dados/{id}")
     @Timed
-    public ResponseEntity<FuncaoDados> getFuncaoDados(@PathVariable Long id) {
+    public ResponseEntity<FuncaoDadoApiDTO> getFuncaoDados(@PathVariable Long id) {
         log.debug("REST request to get FuncaoDados : {}", id);
         FuncaoDados funcaoDados = funcaoDadosRepository.findOne(id);
         if (funcaoDados.getAnalise().getFuncaoDados() != null) {
@@ -130,7 +141,27 @@ public class FuncaoDadosResource {
         if (funcaoDados.getAnalise().getFuncaoTransacaos() != null) {
             funcaoDados.getAnalise().getFuncaoTransacaos().clear();
         }
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcaoDados));
+
+        ModelMapper modelMapper = new ModelMapper();
+
+        FuncaoDadoApiDTO funcaoDadosDTO = modelMapper.map(funcaoDados, FuncaoDadoApiDTO.class);
+
+        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcaoDadosDTO));
+    }
+
+    /**
+     * GET  /funcao-dados/analise/:id : get the "id" analise.
+     *
+     * @param id the id of the funcaoDados to retrieve
+     * @return the ResponseEntity with status 200 (OK) and with body the funcaoDados, or with status 404 (Not Found)
+     */
+    @GetMapping("/funcao-dados/analise/{id}")
+    @Timed
+    public List<FuncaoDados> getFuncaoDadosAnalise(@PathVariable Long id) {
+        log.debug("REST request to get FuncaoDados : {}", id);
+        List<FuncaoDados> funcaoDados = null;
+        funcaoDados = funcaoDadosRepository.findByAnalise(id);
+        return funcaoDados;
     }
 
     /**
@@ -141,6 +172,7 @@ public class FuncaoDadosResource {
      */
     @DeleteMapping("/funcao-dados/{id}")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<Void> deleteFuncaoDados(@PathVariable Long id) {
         log.debug("REST request to delete FuncaoDados : {}", id);
         funcaoDadosRepository.delete(id);

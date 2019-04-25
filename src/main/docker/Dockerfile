@@ -1,11 +1,19 @@
 FROM openjdk:8-jre-alpine
 
+RUN apk --no-cache add msttcorefonts-installer fontconfig && \
+update-ms-fonts && \
+fc-cache -f
+
 ENV SPRING_OUTPUT_ANSI_ENABLED=ALWAYS \
     JHIPSTER_SLEEP=0 \
     JAVA_OPTS="-server -Xmx2G -XX:MinHeapFreeRatio=20 -XX:MaxHeapFreeRatio=40 -XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70 -Duser.timezone=America/Sao_Paulo"
 
 # add directly the war
 ADD *.war /app.war
+
+RUN apk update && \
+    apk add --no-cache ttf-liberation 
+
 
 VOLUME /tmp
 EXPOSE 8080

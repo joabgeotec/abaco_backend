@@ -1,16 +1,17 @@
 package br.com.basis.abaco.domain;
 
-import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
+import br.com.basis.abaco.domain.audit.AbacoAudit;
+import br.com.basis.abaco.domain.audit.AbacoAuditListener;
+import br.com.basis.abaco.domain.audit.AbacoAuditable;
+import br.com.basis.abaco.domain.enumeration.Complexidade;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 import javax.persistence.Column;
 import javax.persistence.Embedded;
 import javax.persistence.EntityListeners;
 import javax.persistence.EnumType;
 import javax.persistence.Enumerated;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
@@ -19,13 +20,12 @@ import javax.persistence.ManyToOne;
 import javax.persistence.MappedSuperclass;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Transient;
-
-import com.fasterxml.jackson.annotation.JsonBackReference;
-
-import br.com.basis.abaco.domain.audit.AbacoAudit;
-import br.com.basis.abaco.domain.audit.AbacoAuditListener;
-import br.com.basis.abaco.domain.audit.AbacoAuditable;
-import br.com.basis.abaco.domain.enumeration.Complexidade;
+import java.math.BigDecimal;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Optional;
+import java.util.Set;
 
 @MappedSuperclass
 @EntityListeners(AbacoAuditListener.class)
@@ -40,18 +40,18 @@ public abstract class FuncaoAnalise implements AbacoAuditable {
     @Column(name = "complexidade")
     private Complexidade complexidade;
 
-    @Column(name = "pf", precision = 10, scale = 2)
+    @Column(name = "pf", precision = 10, scale = 4)
     private BigDecimal pf;
 
-    @Column(name = "grosspf", precision = 10, scale = 2)
+    @Column(name = "grosspf", precision = 10, scale = 4)
     private BigDecimal grossPF;
 
     @ManyToOne
     @JoinColumn(name = "analise_id")
-    @JsonBackReference
+    @JsonBackReference(value = "analise")
     private Analise analise;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "funcionalidade_id")
     private Funcionalidade funcionalidade;
 
@@ -159,18 +159,17 @@ public abstract class FuncaoAnalise implements AbacoAuditable {
     }
 
     public void setDerValues(Set<String> derValues) {
-        this.derValues = new HashSet<String>(derValues);
+        this.derValues = Optional.ofNullable(derValues)
+            .map(HashSet::new)
+            .orElse(new LinkedHashSet<String>());
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hashCode(getId());
-    }
-
     public AbacoAudit getAudit() {
         return audit;
     }
 
+    @Override
     public void setAudit(AbacoAudit audit) {
         this.audit = audit;
     }

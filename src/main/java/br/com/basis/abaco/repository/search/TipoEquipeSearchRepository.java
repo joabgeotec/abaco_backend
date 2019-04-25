@@ -7,4 +7,5 @@ import org.springframework.data.elasticsearch.repository.ElasticsearchRepository
  * Spring Data Elasticsearch repository for the TipoEquipe entity.
  */
 public interface TipoEquipeSearchRepository extends ElasticsearchRepository<TipoEquipe, Long> {
+
 }

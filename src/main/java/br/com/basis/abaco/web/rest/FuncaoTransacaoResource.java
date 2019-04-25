@@ -3,12 +3,15 @@ package br.com.basis.abaco.web.rest;
 import br.com.basis.abaco.domain.FuncaoTransacao;
 import br.com.basis.abaco.repository.FuncaoTransacaoRepository;
 import br.com.basis.abaco.repository.search.FuncaoTransacaoSearchRepository;
+import br.com.basis.abaco.service.dto.FuncaoTransacaoApiDTO;
 import br.com.basis.abaco.web.rest.util.HeaderUtil;
 import com.codahale.metrics.annotation.Timed;
 import io.github.jhipster.web.util.ResponseUtil;
+import org.modelmapper.ModelMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -57,6 +60,7 @@ public class FuncaoTransacaoResource {
      */
     @PostMapping("/funcao-transacaos")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<FuncaoTransacao> createFuncaoTransacao(@RequestBody FuncaoTransacao funcaoTransacao) throws URISyntaxException {
         log.debug("REST request to save FuncaoTransacao : {}", funcaoTransacao);
         if (funcaoTransacao.getId() != null) {
@@ -80,7 +84,32 @@ public class FuncaoTransacaoResource {
      */
     @PutMapping("/funcao-transacaos")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<FuncaoTransacao> updateFuncaoTransacao(@RequestBody FuncaoTransacao funcaoTransacao) throws URISyntaxException {
+        log.debug("REST request to update FuncaoTransacao : {}", funcaoTransacao);
+        if (funcaoTransacao.getId() == null) {
+            return createFuncaoTransacao(funcaoTransacao);
+        }
+        FuncaoTransacao result = funcaoTransacaoRepository.save(funcaoTransacao);
+        funcaoTransacaoSearchRepository.save(result);
+        return ResponseEntity.ok()
+            .headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, funcaoTransacao.getId().toString()))
+            .body(result);
+    }
+
+    /**
+     * PUT  /funcao-transacaos : Updates an existing funcaoTransacao.
+     *
+     * @param funcaoTransacao the funcaoTransacao to update
+     * @return the ResponseEntity with status 200 (OK) and with body the updated funcaoTransacao,
+     * or with status 400 (Bad Request) if the funcaoTransacao is not valid,
+     * or with status 500 (Internal Server Error) if the funcaoTransacao couldnt be updated
+     * @throws URISyntaxException if the Location URI syntax is incorrect
+     */
+    @PutMapping("/funcao-transacaos/crud")
+    @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
+    public ResponseEntity<FuncaoTransacao> gerarCrud(@RequestBody FuncaoTransacao funcaoTransacao) throws URISyntaxException {
         log.debug("REST request to update FuncaoTransacao : {}", funcaoTransacao);
         if (funcaoTransacao.getId() == null) {
             return createFuncaoTransacao(funcaoTransacao);
@@ -121,7 +150,7 @@ public class FuncaoTransacaoResource {
      */
     @GetMapping("/funcao-transacaos/{id}")
     @Timed
-    public ResponseEntity<FuncaoTransacao> getFuncaoTransacao(@PathVariable Long id) {
+    public ResponseEntity<FuncaoTransacaoApiDTO> getFuncaoTransacao(@PathVariable Long id) {
         log.debug("REST request to get FuncaoTransacao : {}", id);
         FuncaoTransacao funcaoTransacao = funcaoTransacaoRepository.findOne(id);
         if (funcaoTransacao.getAnalise().getFuncaoDados() != null) {
@@ -130,7 +159,31 @@ public class FuncaoTransacaoResource {
         if (funcaoTransacao.getAnalise().getFuncaoTransacaos() != null) {
             funcaoTransacao.getAnalise().getFuncaoTransacaos().clear();
         }
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcaoTransacao));
+
+        ModelMapper modelMapper = new ModelMapper();
+
+        FuncaoTransacaoApiDTO funcaoDadosDTO = modelMapper.map(funcaoTransacao, FuncaoTransacaoApiDTO.class);
+
+        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcaoDadosDTO));
+    }
+
+    /**
+     * GET  /funcao-transacaos/completa/:id : get the "id" funcaotransacao.
+     *
+     * @param id the id of the funcaoTransacao to retrieve
+     * @return the ResponseEntity with status 200 (OK) and with body the funcaoTransacao, or with status 404 (Not Found)
+     */
+    @GetMapping("/funcao-transacaos/completa/{id}")
+    @Timed
+    public ResponseEntity<FuncaoTransacaoApiDTO> getFuncaoTransacaoCompleta(@PathVariable Long id) {
+        log.debug("REST request to get FuncaoTransacao : {}", id);
+        FuncaoTransacao funcaoTransacao = funcaoTransacaoRepository.findWithDerAndAlr(id);
+
+        ModelMapper modelMapper = new ModelMapper();
+
+        FuncaoTransacaoApiDTO funcaoDadosDTO = modelMapper.map(funcaoTransacao, FuncaoTransacaoApiDTO.class);
+
+        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(funcaoDadosDTO));
     }
 
     /**
@@ -141,6 +194,7 @@ public class FuncaoTransacaoResource {
      */
     @DeleteMapping("/funcao-transacaos/{id}")
     @Timed
+    @Secured({"ROLE_ADMIN", "ROLE_USER", "ROLE_GESTOR"})
     public ResponseEntity<Void> deleteFuncaoTransacao(@PathVariable Long id) {
         log.debug("REST request to delete FuncaoTransacao : {}", id);
         funcaoTransacaoRepository.delete(id);

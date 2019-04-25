@@ -1,26 +1,41 @@
 package br.com.basis.abaco.web.rest;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
-import javax.transaction.Transactional;
-import javax.validation.Valid;
-
+import br.com.basis.abaco.domain.FuncaoDados;
+import br.com.basis.abaco.domain.FuncaoDadosVersionavel;
+import br.com.basis.abaco.domain.Modulo;
+import br.com.basis.abaco.domain.Organizacao;
+import br.com.basis.abaco.domain.Sistema;
+import br.com.basis.abaco.repository.FuncaoDadosRepository;
+import br.com.basis.abaco.repository.FuncaoDadosVersionavelRepository;
+import br.com.basis.abaco.repository.SistemaRepository;
+import br.com.basis.abaco.repository.search.SistemaSearchRepository;
+import br.com.basis.abaco.service.exception.RelatorioException;
+import br.com.basis.abaco.service.relatorio.RelatorioSistemaColunas;
+import br.com.basis.abaco.utils.AbacoUtil;
+import br.com.basis.abaco.utils.PageUtils;
+import br.com.basis.abaco.web.rest.util.HeaderUtil;
+import br.com.basis.abaco.web.rest.util.PaginationUtil;
+import br.com.basis.dynamicexports.service.DynamicExportsService;
+import br.com.basis.dynamicexports.util.DynamicExporter;
+import com.codahale.metrics.annotation.Timed;
+import io.github.jhipster.web.util.ResponseUtil;
+import net.sf.dynamicreports.report.exception.DRException;
+import net.sf.jasperreports.engine.JRException;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,22 +46,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.codahale.metrics.annotation.Timed;
+import javax.transaction.Transactional;
+import javax.validation.Valid;
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
-import br.com.basis.abaco.domain.FuncaoDados;
-import br.com.basis.abaco.domain.FuncaoDadosVersionavel;
-import br.com.basis.abaco.domain.Modulo;
-import br.com.basis.abaco.domain.Organizacao;
-import br.com.basis.abaco.domain.Sistema;
-import br.com.basis.abaco.repository.FuncaoDadosRepository;
-import br.com.basis.abaco.repository.FuncaoDadosVersionavelRepository;
-import br.com.basis.abaco.repository.OrganizacaoRepository;
-import br.com.basis.abaco.repository.SistemaRepository;
-import br.com.basis.abaco.repository.search.SistemaSearchRepository;
-import br.com.basis.abaco.utils.PageUtils;
-import br.com.basis.abaco.web.rest.util.HeaderUtil;
-import br.com.basis.abaco.web.rest.util.PaginationUtil;
-import io.github.jhipster.web.util.ResponseUtil;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 
 /**
  * REST controller for managing Sistema.
@@ -55,199 +67,290 @@ import io.github.jhipster.web.util.ResponseUtil;
 @RequestMapping("/api")
 public class SistemaResource {
 
-	private final Logger log = LoggerFactory.getLogger(SistemaResource.class);
+  private final Logger log = LoggerFactory.getLogger(SistemaResource.class);
 
-	private static final String ENTITY_NAME = "sistema";
+  private static final String ENTITY_NAME = "sistema";
 
-	private final SistemaRepository sistemaRepository;
+    private static final String DBG_MSG_SIS = "REST request to search Sistemas for query {}";
 
-	private final SistemaSearchRepository sistemaSearchRepository;
+  private final SistemaRepository sistemaRepository;
 
-	private final OrganizacaoRepository organizacaoRepository;
+  private final SistemaSearchRepository sistemaSearchRepository;
 
-	private final FuncaoDadosVersionavelRepository funcaoDadosVersionavelRepository;
+  private final FuncaoDadosVersionavelRepository funcaoDadosVersionavelRepository;
 
-	private final FuncaoDadosRepository funcaoDadosRepository;
+  private final FuncaoDadosRepository funcaoDadosRepository;
 
-	public SistemaResource(
-			SistemaRepository sistemaRepository, 
-			SistemaSearchRepository sistemaSearchRepository,
-			OrganizacaoRepository organizacaoRepository,
-			FuncaoDadosVersionavelRepository funcaoDadosVersionavelRepository,
-			FuncaoDadosRepository funcaoDadosRepository) {
+  private final DynamicExportsService dynamicExportsService;
 
-		this.sistemaRepository = sistemaRepository;
-		this.sistemaSearchRepository = sistemaSearchRepository;
-		this.organizacaoRepository = organizacaoRepository;
-		this.funcaoDadosVersionavelRepository = funcaoDadosVersionavelRepository;
-		this.funcaoDadosRepository = funcaoDadosRepository;
-	}
+  private static final String ROLE_ANALISTA = "ROLE_ANALISTA";
 
-	/**
-	 * POST /sistemas : Create a new sistema.
-	 * @param sistema the sistema to create
-	 * @return the ResponseEntity with status 201 (Created) 
-	 * and with body the new sistema, or with status 400 (Bad Request) 
-	 * if the sistema has already an ID
-	 * @throws URISyntaxException if the Location URI syntax is incorrect
-	 */
-	@PostMapping("/sistemas")
-	@Timed
-	public ResponseEntity<Sistema> createSistema(@Valid @RequestBody Sistema sistema) throws URISyntaxException {
-		log.debug("REST request to save Sistema : {}", sistema);
-		if (sistema.getId() != null) {
-			return ResponseEntity.badRequest().headers(
-					HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new sistema cannot already have an ID"))
-					.body(null);
-		}
-		Sistema linkedSistema = linkSistemaToModuleToFunctionalities(sistema);
-		Sistema result = sistemaRepository.save(linkedSistema);
-		sistemaSearchRepository.save(result);
-		return ResponseEntity.created(new URI("/api/sistemas/" + result.getId()))
-				.headers(HeaderUtil.createEntityCreationAlert(ENTITY_NAME, result.getId().toString())).body(result);
-	}
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
 
-	private Sistema linkSistemaToModuleToFunctionalities(Sistema sistema) {
-		Sistema linkedSistema = copySistema(sistema);
-		Set<Modulo> modulos = linkedSistema.getModulos();
-		modulos.forEach(m -> {
-			m.setSistema(linkedSistema);
-			m.getFuncionalidades().parallelStream().forEach(f -> f.setModulo(m));
-		});
-		return linkedSistema;
-	}
+    private static final String ROLE_USER = "ROLE_USER";
 
-	private Sistema copySistema(Sistema sistema) {
-		Sistema copy = new Sistema();
-		copy.setId(sistema.getId());
-		copy.setSigla(sistema.getSigla());
-		copy.setNome(sistema.getNome());
-		copy.setNumeroOcorrencia(sistema.getNumeroOcorrencia());
-		copy.setOrganizacao(sistema.getOrganizacao());
-		copy.setModulos(new HashSet<>(sistema.getModulos()));
-		return copy;
-	}
+    private static final String ROLE_GESTOR = "ROLE_GESTOR";
 
-	/**
-	 * PUT /sistemas : Updates an existing sistema.
-	 * @param sistema the sistema to update
-	 * @return the ResponseEntity with status 200 (OK) and with body the updated 
-	 * sistema, or with status 400 (Bad Request) if the sistema is not
-	 * valid, or with status 500 (Internal Server Error) if the sistema
-	 * couldnt be updated
-	 * @throws URISyntaxException if the Location URI syntax is incorrect
-	 */
-	@PutMapping("/sistemas")
-	@Timed
-	public ResponseEntity<Sistema> updateSistema(@Valid @RequestBody Sistema sistema) throws URISyntaxException {
-		log.debug("REST request to update Sistema : {}", sistema);
-		if (sistema.getId() == null) {
-			return createSistema(sistema);
-		}
-		Sistema linkedSistema = linkSistemaToModuleToFunctionalities(sistema);
-		Sistema result = sistemaRepository.save(linkedSistema);
-		sistemaSearchRepository.save(result);
-		return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, sistema.getId().toString())).body(result);
-	}
+    private static  final String PAGE = "page";
 
-	/**
-	 * GET /sistemas : get all the sistemas.
-	 * @return the ResponseEntity with status 200 (OK) and the list of sistemas in body
-	 */
-	@PostMapping("/sistemas/organizations")
-	@Timed
-	public List<Sistema> getAllSistemasByOrganization(@Valid @RequestBody Organizacao organization) {
-		log.debug("REST request to get all Sistemas");
-		List<Sistema> sistemas = sistemaRepository.findAllByOrganizacao(organization);
-		return sistemas;
-	}
+  public SistemaResource(
+      SistemaRepository sistemaRepository,
+      SistemaSearchRepository sistemaSearchRepository,
+      FuncaoDadosVersionavelRepository funcaoDadosVersionavelRepository,
+      FuncaoDadosRepository funcaoDadosRepository, DynamicExportsService dynamicExportsService) {
 
-	@GetMapping("/sistemas/organizacao/{idOrganizacao}")
-	@Timed
-	@Transactional
-	public Set<Sistema> getAllSistemasByOrganizacaoId(@PathVariable Long idOrganizacao) {
-		Organizacao organizacao = organizacaoRepository.findOne(idOrganizacao);
-		return organizacao.getSistemas();
-	}
+    this.sistemaRepository = sistemaRepository;
+    this.sistemaSearchRepository = sistemaSearchRepository;
+    this.funcaoDadosVersionavelRepository = funcaoDadosVersionavelRepository;
+    this.funcaoDadosRepository = funcaoDadosRepository;
+    this.dynamicExportsService = dynamicExportsService;
+  }
 
-	/**
-	 * GET /sistemas : get all the sistemas.
-	 * @return the ResponseEntity with status 200 (OK) and the list of sistemas in body
-	 */
-	@GetMapping("/sistemas")
-	@Timed
-	public List<Sistema> getAllSistemas() {
-		log.debug("REST request to get all Sistemas");
-		List<Sistema> sistemas = sistemaRepository.findAll();
-		return sistemas;
-	}
+  /**
+   * POST /sistemas : Create a new sistema.
+   * @param sistema the sistema to create
+   * @return the ResponseEntity with status 201 (Created)
+   * and with body the new sistema, or with status 400 (Bad Request)
+   * if the sistema has already an ID
+   * @throws URISyntaxException if the Location URI syntax is incorrect
+   */
+  @PostMapping("/sistemas")
+  @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
+  public ResponseEntity<Sistema> createSistema(@Valid @RequestBody Sistema sistema) throws URISyntaxException {
+    log.debug("REST request to save Sistema : {}", sistema);
+    if (sistema.getId() != null) {
+      return ResponseEntity.badRequest().headers(
+          HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new sistema cannot already have an ID"))
+          .body(null);
+    }
+    Sistema linkedSistema = linkSistemaToModuleToFunctionalities(sistema);
+    Sistema result = sistemaRepository.save(linkedSistema);
+    sistemaSearchRepository.save(result);
+    return ResponseEntity.created(new URI("/api/sistemas/" + result.getId()))
+        .headers(HeaderUtil.createEntityCreationAlert(ENTITY_NAME, result.getId().toString())).body(result);
+  }
 
-	/**
-	 * GET /sistemas/:id : get the "id" sistema.
-	 * @param id the id of the sistema to retrieve
-	 * @return the ResponseEntity with status 200 (OK) and with body 
-	 * the sistema, or with status 404 (Not Found)
-	 */
-	@GetMapping("/sistemas/{id}")
-	@Timed
-	public ResponseEntity<Sistema> getSistema(@PathVariable Long id) {
-		log.debug("REST request to get Sistema : {}", id);
-		Sistema sistema = sistemaRepository.findOne(id);
-		return ResponseUtil.wrapOrNotFound(Optional.ofNullable(sistema));
-	}
+  private Sistema linkSistemaToModuleToFunctionalities(Sistema sistema) {
+    Sistema linkedSistema = copySistema(sistema);
+    Set<Modulo> modulos = linkedSistema.getModulos();
+    Optional.ofNullable(modulos).orElse(Collections.emptySet())
+      .forEach(m -> {
+        m.setSistema(linkedSistema);
+        Optional.ofNullable(m.getFuncionalidades())
+          .orElse(Collections.emptySet())
+          .parallelStream().forEach(f -> f.setModulo(m));
+      });
+    return linkedSistema;
+  }
 
-	// TODO essa ou nova rota para retornar somente o nome das funcoes
-	@GetMapping("/sistemas/{id}/funcao-dados")
-	public Set<FuncaoDadosVersionavel> getFuncoesDeDadosVersionaveisBySistema(@PathVariable Long id) {
-		return funcaoDadosVersionavelRepository.findAllBySistemaId(id);
-	}
+  private Sistema copySistema(Sistema sistema) {
+    Sistema copy = new Sistema();
+    copy.setId(sistema.getId());
+    copy.setSigla(sistema.getSigla());
+    copy.setNome(sistema.getNome());
+    copy.setTipoSistema(sistema.getTipoSistema());
+    copy.setNumeroOcorrencia(sistema.getNumeroOcorrencia());
+    copy.setOrganizacao(sistema.getOrganizacao());
+    copy.setModulos(Optional.ofNullable(sistema.getModulos())
+      .map((lista) -> new HashSet<>(lista))
+      .orElse(new HashSet<>()));
+    return copy;
+  }
 
-	@GetMapping("/sistemas/{id}/funcao-dados-versionavel/{nome}")
-	public FuncaoDados recuperarFuncaoDadosPorIdNome(@PathVariable Long id, @PathVariable String nome) {
+  /**
+   * PUT /sistemas : Updates an existing sistema.
+   * @param sistema the sistema to update
+   * @return the ResponseEntity with status 200 (OK) and with body the updated
+   * sistema, or with status 400 (Bad Request) if the sistema is not
+   * valid, or with status 500 (Internal Server Error) if the sistema
+   * couldnt be updated
+   * @throws URISyntaxException if the Location URI syntax is incorrect
+   */
+  @PutMapping("/sistemas")
+  @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
+  public ResponseEntity<Sistema> updateSistema(@Valid @RequestBody Sistema sistema) throws URISyntaxException {
+    log.debug("REST request to update Sistema : {}", sistema);
+    if (sistema.getId() == null) {
+      return createSistema(sistema);
+    }
+    Sistema linkedSistema = linkSistemaToModuleToFunctionalities(sistema);
+    Sistema result = sistemaRepository.save(linkedSistema);
+    sistemaSearchRepository.save(result);
+    return ResponseEntity.ok().headers(HeaderUtil.createEntityUpdateAlert(ENTITY_NAME, sistema.getId().toString())).body(result);
+  }
 
-		Optional<FuncaoDadosVersionavel> funcaoDadosVersionavelOptional = funcaoDadosVersionavelRepository
-				.findOneByNomeIgnoreCaseAndSistemaId(nome, id);
+  /**
+   * GET /sistemas : get all the sistemas.
+   * @return the ResponseEntity with status 200 (OK) and the list of sistemas in body
+   */
+  @PostMapping("/sistemas/organizations")
+  @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
+  public List<Sistema> getAllSistemasByOrganization(@Valid @RequestBody Organizacao organization) {
+    log.debug("REST request to get all Sistemas");
+    return sistemaRepository.findAllByOrganizacao(organization);
+  }
 
-		if (funcaoDadosVersionavelOptional.isPresent()) {
-			FuncaoDadosVersionavel fdv = funcaoDadosVersionavelOptional.get();
-			return funcaoDadosRepository.findFirstByFuncaoDadosVersionavelIdOrderByAuditUpdatedOnDesc(fdv.getId()).get();
-		}
-		
-		return null;
-	}
+  @GetMapping("/sistemas/organizacao/{idOrganizacao}")
+  @Timed
+  @Transactional
+  public Set<Sistema> findAllSystemOrg(@PathVariable Long idOrganizacao) {
+        log.debug("REST request to get all Sistemas by Organizacao");
+    return sistemaRepository.findAllSystemOrg(idOrganizacao);
+  }
 
-	/**
-	 * DELETE /sistemas/:id : delete the "id" sistema.
-	 * @param id the id of the sistema to delete
-	 * @return the ResponseEntity with status 200 (OK)
-	 */
-	@DeleteMapping("/sistemas/{id}")
-	@Timed
-	public ResponseEntity<Void> deleteSistema(@PathVariable Long id) {
-		log.debug("REST request to delete Sistema : {}", id);
-		sistemaRepository.delete(id);
-		sistemaSearchRepository.delete(id);
-		return ResponseEntity.ok().headers(HeaderUtil.createEntityDeletionAlert(ENTITY_NAME, id.toString())).build();
-	}
+  /**
+   * GET /sistemas : get all the sistemas.
+   * @return the ResponseEntity with status 200 (OK) and the list of sistemas in body
+   */
+  @GetMapping("/sistemas")
+  @Timed
+  public List<Sistema> getAllSistemas() {
+    log.debug("REST request to get all Sistemas");
+    return sistemaRepository.findAll();
+  }
 
-	/**
-	 * SEARCH /_search/sistemas?query=:query : search for the sistema corresponding to the query.
-	 * @param query the query of the sistema search
-	 * @return the result of the search
-	 * @throws URISyntaxException
-	 */
-	@GetMapping("/_search/sistemas")
-	@Timed
-	public ResponseEntity<List<Sistema>> searchSistemas(@RequestParam(defaultValue = "*") String query,
-			@RequestParam String order, @RequestParam(name = "page") int pageNumber, @RequestParam int size,
-			@RequestParam(defaultValue = "id") String sort) throws URISyntaxException {
-		log.debug("REST request to search Sistemas for query {}", query);
-		Sort.Direction sortOrder = PageUtils.getSortDirection(order);
-		Pageable newPageable = new PageRequest(pageNumber, size, sortOrder, sort);
+  /**
+   * GET /sistemas/:id : get the "id" sistema.
+   * @param id the id of the sistema to retrieve
+   * @return the ResponseEntity with status 200 (OK) and with body
+   * the sistema, or with status 404 (Not Found)
+   */
+  @GetMapping("/sistemas/{id}")
+  @Timed
+  public ResponseEntity<Sistema> getSistema(@PathVariable Long id) {
+    log.debug("REST request to get Sistema : {}", id);
+    Sistema sistema = sistemaRepository.findOne(id);
+    return ResponseUtil.wrapOrNotFound(Optional.ofNullable(sistema));
+  }
 
-		Page<Sistema> page = sistemaSearchRepository.search(queryStringQuery(query), newPageable);
-		HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/sistemas");
-		return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
-	}
+  // TODO essa ou nova rota para retornar somente o nome das funcoes
+  @GetMapping("/sistemas/{id}/funcao-dados")
+  public Set<FuncaoDadosVersionavel> getFuncoesDeDadosVersionaveisBySistema(@PathVariable Long id) {
+    return funcaoDadosVersionavelRepository.findAllBySistemaId(id);
+  }
 
+  @GetMapping("/sistemas/{id}/funcao-dados-versionavel/{nome}")
+  public FuncaoDados recuperarFuncaoDadosPorIdNome(@PathVariable Long id, @PathVariable String nome) {
+
+    Optional<FuncaoDadosVersionavel> funcaoDadosVersionavelOptional = funcaoDadosVersionavelRepository
+        .findOneByNomeIgnoreCaseAndSistemaId(nome, id);
+
+    if (funcaoDadosVersionavelOptional.isPresent()) {
+      FuncaoDadosVersionavel fdv = funcaoDadosVersionavelOptional.get();
+      return funcaoDadosRepository.findFirstByFuncaoDadosVersionavelIdOrderByAuditUpdatedOnDesc(fdv.getId()).get();
+    }
+
+    return null;
+  }
+
+  /**
+   * DELETE /sistemas/:id : delete the "id" sistema.
+   * @param id the id of the sistema to delete
+   * @return the ResponseEntity with status 200 (OK)
+   */
+  @DeleteMapping("/sistemas/{id}")
+  @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
+  public ResponseEntity<Void> deleteSistema(@PathVariable Long id) {
+    log.debug("REST request to delete Sistema : {}", id);
+    if (sistemaRepository.quantidadeSistema(id) > 0) {
+      return ResponseEntity.badRequest().headers(
+               HeaderUtil.createFailureAlert(ENTITY_NAME, "analiseexists", "This System can not be deleted"))
+               .body(null);
+    }
+
+    sistemaRepository.delete(id);
+    sistemaSearchRepository.delete(id);
+    return ResponseEntity.ok().headers(HeaderUtil.createEntityDeletionAlert(ENTITY_NAME, id.toString())).build();
+
+  }
+
+  /**
+   * SEARCH /_search/sistemas?query=:query : search for the sistema corresponding to the query.
+   * @param query the query of the sistema search
+   * @return the result of the search
+   * @throws URISyntaxException
+   */
+
+    @GetMapping("/_search/sistemas")
+    @Timed
+    public ResponseEntity<List<Sistema>> searchSistemas(@RequestParam(defaultValue = "*") String query,
+                                                        @RequestParam String order, @RequestParam(name = PAGE) int pageNumber, @RequestParam int size,
+                                                        @RequestParam(defaultValue = "id") String sort) throws URISyntaxException {
+        log.debug(DBG_MSG_SIS, query);
+        Sort.Direction sortOrder = PageUtils.getSortDirection(order);
+        Pageable newPageable = new PageRequest(pageNumber, size, sortOrder, sort);
+
+        Page<Sistema> page = sistemaSearchRepository.search(queryStringQuery(query), newPageable);
+        HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/sistemas");
+        return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
+    }
+
+
+    @GetMapping("/_searchSigla/sistemas")
+    @Timed
+    public ResponseEntity<List<Sistema>> searchSiglaSistemas(@RequestParam(defaultValue = "*") String query,
+                                                        @RequestParam String order, @RequestParam(name = PAGE) int pageNumber, @RequestParam int size,
+                                                        @RequestParam(defaultValue = "id") String sort) throws URISyntaxException {
+        log.debug(DBG_MSG_SIS, query);
+        Sort.Direction sortOrder = PageUtils.getSortDirection(order);
+        Pageable newPageable = new PageRequest(pageNumber, size, sortOrder, sort);
+
+        QueryBuilder qb = QueryBuilders.matchPhraseQuery("sigla", query);
+
+        Page<Sistema> page = sistemaSearchRepository.search((qb), newPageable);
+        HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_searchSigla/sistemas");
+        return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
+    }
+
+    @GetMapping("/_searchSistema/sistemas")
+    @Timed
+    public ResponseEntity<List<Sistema>> searchNomeSistemas(@RequestParam(defaultValue = "*") String query,
+                                                        @RequestParam String order, @RequestParam(name = PAGE) int pageNumber, @RequestParam int size,
+                                                        @RequestParam(defaultValue = "id") String sort) throws URISyntaxException {
+        log.debug(DBG_MSG_SIS, query);
+        Sort.Direction sortOrder = PageUtils.getSortDirection(order);
+        Pageable newPageable = new PageRequest(pageNumber, size, sortOrder, sort);
+
+        QueryBuilder qb = QueryBuilders.matchPhraseQuery("nome", query);
+
+        Page<Sistema> page = sistemaSearchRepository.search((qb), newPageable);
+        HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_searchSistema/sistemas");
+        return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
+    }
+
+    @GetMapping("/_searchOrganizacao/sistemas")
+    @Timed
+    public ResponseEntity<List<Sistema>> searchOrganizacaoSistemas(@RequestParam(defaultValue = "*") String query,
+                                                            @RequestParam String order, @RequestParam(name = PAGE) int pageNumber, @RequestParam int size,
+                                                            @RequestParam(defaultValue = "id") String sort) throws URISyntaxException {
+        log.debug(DBG_MSG_SIS, query);
+        Sort.Direction sortOrder = PageUtils.getSortDirection(order);
+        Pageable newPageable = new PageRequest(pageNumber, size, sortOrder, sort);
+
+        QueryBuilder qb = QueryBuilders.matchPhraseQuery("organizacao.nome", query);
+
+        Page<Sistema> page = sistemaSearchRepository.search((qb), newPageable);
+        HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_searchOrganizacao/sistemas");
+        return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
+    }
+
+    @GetMapping(value = "/sistema/exportacao/{tipoRelatorio}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @Timed
+    public ResponseEntity<InputStreamResource> gerarRelatorioExportacao(@PathVariable String tipoRelatorio, @RequestParam(defaultValue = "*") String query) throws RelatorioException {
+        ByteArrayOutputStream byteArrayOutputStream;
+        try {
+            new NativeSearchQueryBuilder().withQuery(multiMatchQuery(query)).build();
+            Page<Sistema> result =  sistemaSearchRepository.search(queryStringQuery(query), dynamicExportsService.obterPageableMaximoExportacao());
+            byteArrayOutputStream = dynamicExportsService.export(new RelatorioSistemaColunas(), result, tipoRelatorio, Optional.empty(), Optional.ofNullable(AbacoUtil.REPORT_LOGO_PATH), Optional.ofNullable(AbacoUtil.getReportFooter()));
+        } catch (DRException | ClassNotFoundException | JRException | NoClassDefFoundError e) {
+            log.error(e.getMessage(), e);
+            throw new RelatorioException(e);
+        }
+        return DynamicExporter.output(byteArrayOutputStream,
+            "relatorio." + tipoRelatorio);
+    }
 }

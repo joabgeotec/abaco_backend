@@ -1,7 +1,12 @@
 package br.com.basis.abaco.domain;
 
-import java.io.Serializable;
-import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldIndex;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import javax.persistence.Column;
 import javax.persistence.Entity;
@@ -11,12 +16,8 @@ import javax.persistence.Id;
 import javax.persistence.ManyToOne;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
-
-import org.hibernate.annotations.Cache;
-import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
-
-import com.fasterxml.jackson.annotation.JsonBackReference;
+import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * A Der.
@@ -35,6 +36,7 @@ public class Der implements Serializable {
     private Long id;
 
     @Column(name = "nome")
+    @Field (index = FieldIndex.not_analyzed, type = FieldType.String)
     private String nome;
 
     private Integer valor;
@@ -93,6 +95,9 @@ public class Der implements Serializable {
     }
 
     public FuncaoTransacao getFuncaoTransacao() {
+        if (funcaoTransacao == null) {
+            return null;
+        }
         return funcaoTransacao;
     }
 

@@ -1,11 +1,10 @@
 package br.com.basis.abaco.domain;
 
-import java.io.Serializable;
-
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.Table;
+import java.io.Serializable;
 
 /**
  * @author eduardo.andrade
@@ -15,30 +14,30 @@ import javax.persistence.Table;
 @Table(name = "impacto")
 public class Impacto implements Serializable {
 
-	private static final long serialVersionUID = -761523812287216815L;
+    private static final long serialVersionUID = -761523812287216815L;
 
-	@Id
-	@Column(name="id")
-	private Long id;
-	
+    @Id
+    @Column(name="id")
+    private Long id;
+
     @Column(name = "descricao", unique=true)
-	private String descricao;
+    private String descricao;
 
     
-	public Long getId() {
-		return id;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-	public String getDescricao() {
-		return descricao;
-	}
+    public String getDescricao() {
+        return descricao;
+    }
 
-	public void setDescricao(String descricao) {
-		this.descricao = descricao;
-	}
+    public void setDescricao(String descricao) {
+        this.descricao = descricao;
+    }
 
 }

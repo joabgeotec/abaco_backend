@@ -10,6 +10,7 @@ import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,11 +43,30 @@ public class ContratoResource {
 
     private final ContratoRepository contratoRepository;
 
+    private static final String ROLE_ANALISTA = "ROLE_ANALISTA";
+
+    private static final String ROLE_ADMIN = "ROLE_ADMIN";
+
+    private static final String ROLE_USER = "ROLE_USER";
+
+    private static final String ROLE_GESTOR = "ROLE_GESTOR";
+
     private final ContratoSearchRepository contratoSearchRepository;
 
     public ContratoResource(ContratoRepository contratoRepository, ContratoSearchRepository contratoSearchRepository) {
         this.contratoRepository = contratoRepository;
         this.contratoSearchRepository = contratoSearchRepository;
+    }
+
+    /**
+     * Function to format a bad request URL to be returned to frontend
+     * @param errorKey The key identifing the error occured
+     * @param defaultMessage Default message to display to user
+     * @return The bad request URL
+     */
+    private ResponseEntity<Contrato> createBadRequest(String errorKey, String defaultMessage) {
+        return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, errorKey, defaultMessage))
+            .body(null);
     }
 
     /**
@@ -58,11 +78,18 @@ public class ContratoResource {
      */
     @PostMapping("/contratoes")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Contrato> createContrato(@RequestBody Contrato contrato) throws URISyntaxException {
         log.debug("REST request to save Contrato : {}", contrato);
         if (contrato.getId() != null) {
             return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new contrato cannot already have an ID")).body(null);
         }
+
+        /* Verifing field "Inicio Vigência" and "Final Vigência" */
+        if (contrato.getDataInicioVigencia().isAfter(contrato.getDataFimVigencia())){
+            return this.createBadRequest("beggindateGTenddate", "Filed \"Início Vigência\" is after \"Final Vigência\"");
+        }
+
         Contrato result = contratoRepository.save(contrato);
         contratoSearchRepository.save(result);
         return ResponseEntity.created(new URI("/api/contratoes/" + result.getId()))
@@ -81,11 +108,19 @@ public class ContratoResource {
      */
     @PutMapping("/contratoes")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Contrato> updateContrato(@RequestBody Contrato contrato) throws URISyntaxException {
         log.debug("REST request to update Contrato : {}", contrato);
+
+        /* Verifing field "Inicio Vigência" and "Final Vigência" */
+        if (contrato.getDataInicioVigencia().isAfter(contrato.getDataFimVigencia())){
+            return this.createBadRequest("beggindateGTenddate", "Filed \"Início Vigência\" is after \"Final Vigência\"");
+        }
+
         if (contrato.getId() == null) {
             return createContrato(contrato);
         }
+
         Contrato result = contratoRepository.save(contrato);
         contratoSearchRepository.save(result);
         return ResponseEntity.ok()
@@ -101,10 +136,10 @@ public class ContratoResource {
      */
     @PostMapping("/contratoes/organizations")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public List<Contrato> getAllContratoesByOrganization(@RequestBody Organizacao organizacao) {
         log.debug("REST request to get all Contratoes");
-        List<Contrato> contratoes = contratoRepository.findAllByOrganization(organizacao);
-        return contratoes;
+        return contratoRepository.findAllByOrganization(organizacao.getId());
     }
 
 
@@ -117,8 +152,7 @@ public class ContratoResource {
     @Timed
     public List<Contrato> getAllContratoes() {
         log.debug("REST request to get all Contratoes");
-        List<Contrato> contratoes = contratoRepository.findAll();
-        return contratoes;
+        return contratoRepository.findAll();
     }
 
     /**
@@ -143,6 +177,7 @@ public class ContratoResource {
      */
     @DeleteMapping("/contratoes/{id}")
     @Timed
+    @Secured({ROLE_ADMIN, ROLE_USER, ROLE_GESTOR, ROLE_ANALISTA})
     public ResponseEntity<Void> deleteContrato(@PathVariable Long id) {
         log.debug("REST request to delete Contrato : {}", id);
         contratoRepository.delete(id);

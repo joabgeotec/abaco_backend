@@ -1,12 +1,8 @@
 package br.com.basis.abaco;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.Arrays;
-import java.util.Collection;
-
-import javax.annotation.PostConstruct;
-
+import br.com.basis.abaco.config.ApplicationProperties;
+import br.com.basis.abaco.config.DefaultProfileUtil;
+import io.github.jhipster.config.JHipsterConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -19,9 +15,11 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.core.env.Environment;
 
-import br.com.basis.abaco.config.ApplicationProperties;
-import br.com.basis.abaco.config.DefaultProfileUtil;
-import io.github.jhipster.config.JHipsterConstants;
+import javax.annotation.PostConstruct;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.Collection;
 
 @ComponentScan
 @EnableAutoConfiguration(exclude = {MetricFilterAutoConfiguration.class, MetricRepositoryAutoConfiguration.class})
@@ -71,6 +69,16 @@ public class AbacoApp {
         if (env.getProperty("server.ssl.key-store") != null) {
             protocol = "https";
         }
+        defineLog(env, protocol);
+    }
+    
+    /**
+     * 
+     * @param env
+     * @param protocol
+     * @throws UnknownHostException
+     */
+    private static void defineLog(Environment env, String protocol) throws UnknownHostException {
         log.info("\n----------------------------------------------------------\n\t" +
                 "Application '{}' is running! Access URLs:\n\t" +
                 "Local: \t\t{}://localhost:{}\n\t" +
